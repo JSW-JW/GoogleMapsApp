@@ -68,7 +68,8 @@ public class MainActivity extends AppCompatActivity implements
         View.OnClickListener,
         ChatroomRecyclerAdapter.ChatroomRecyclerClickListener
 {
-
+    //tag
+    
     private static final String TAG = "MainActivity";
 
     //widgets
