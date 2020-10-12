@@ -14,19 +14,20 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-
 import com.codingwithmitch.googlemaps2018.R;
 import com.codingwithmitch.googlemaps2018.adapters.UserRecyclerAdapter;
+import com.codingwithmitch.googlemaps2018.models.ClusterMarker;
 import com.codingwithmitch.googlemaps2018.models.User;
 import com.codingwithmitch.googlemaps2018.models.UserLocation;
+import com.codingwithmitch.googlemaps2018.util.MyClusterManagerRenderer;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapView;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.maps.android.clustering.ClusterManager;
 
 import java.util.ArrayList;
 
@@ -48,6 +49,9 @@ public class UserListFragment extends Fragment implements OnMapReadyCallback {
     private GoogleMap mGoogleMap;
     private UserLocation mUserPosition;
     private LatLngBounds mMapBoundary;
+    private ClusterManager mClusterManager;
+    private MyClusterManagerRenderer mClusterManagerRenderer;
+    private ArrayList<ClusterMarker> mClusterMarkers;
 
 
     public static UserListFragment newInstance() {
@@ -83,10 +87,64 @@ public class UserListFragment extends Fragment implements OnMapReadyCallback {
         return view;
     }
 
-    /**
-     * Determines the view boundary then sets the camera
-     * Sets the view
-     */
+    private void addMapMarkers(){
+
+        if(mGoogleMap != null){
+
+            if(mClusterManager == null){
+                mClusterManager = new ClusterManager<ClusterMarker>(getContext(), mGoogleMap);
+            }
+            if(mClusterManagerRenderer == null){
+                mClusterManagerRenderer = new MyClusterManagerRenderer(
+                        getActivity(),
+                        mGoogleMap,
+                        mClusterManager
+                );
+                mClusterManager.setRenderer(mClusterManagerRenderer);
+            }
+
+            for(UserLocation userLocation: mUserLocations){
+
+                Log.d(TAG, "addMapMarkers: location: " + userLocation.getGeo_point().toString());
+                try{
+                    String snippet = "";
+                    if(userLocation.getUser().getUser_id().equals(FirebaseAuth.getInstance().getUid())){
+                        snippet = "This is you";
+                    }
+                    else{
+                        snippet = "Determine route to " + userLocation.getUser().getUsername() + "?";
+                    }
+
+                    int avatar = R.drawable.cartman_cop; // set the default avatar
+//                    try{
+//                        avatar = Integer.parseInt(userLocation.getUser().getAvatar());
+//                    }catch (NumberFormatException e){
+//                        Log.d(TAG, "addMapMarkers: no avatar for " + userLocation.getUser().getUsername() + ", setting default.");
+//                    }
+                    if(userLocation.getUser().getAvatar() != null) {
+                        avatar = Integer.parseInt(userLocation.getUser().getAvatar());
+                    }
+                    ClusterMarker newClusterMarker = new ClusterMarker(
+                            new LatLng(userLocation.getGeo_point().getLatitude(), userLocation.getGeo_point().getLongitude()),
+                            userLocation.getUser().getUsername(),
+                            snippet,
+                            avatar,
+                            userLocation.getUser()
+                    );
+                    mClusterManager.addItem(newClusterMarker);
+                    mClusterMarkers.add(newClusterMarker);
+
+                }catch (NullPointerException e){
+                    Log.e(TAG, "addMapMarkers: NullPointerException: " + e.getMessage() );
+                }
+
+            }
+            mClusterManager.cluster();
+
+            setCameraView();
+        }
+    }
+
     private void setCameraView() {
 
         // Set a boundary to start
@@ -172,7 +230,7 @@ public class UserListFragment extends Fragment implements OnMapReadyCallback {
         }
         map.setMyLocationEnabled(true);
         mGoogleMap = map;
-        setCameraView();
+        addMapMarkers();
     }
 
     @Override
