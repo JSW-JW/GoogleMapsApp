@@ -123,7 +123,7 @@ public class MainActivity extends AppCompatActivity implements
                 return true;
             }
         }
-        Log.d(TAG, "isLocationServiceRunning: location service is not running.");
+        /*Log.d(TAG, "isLocationServiceRunning: location service is not running.");*/
         return false;
     }
 
