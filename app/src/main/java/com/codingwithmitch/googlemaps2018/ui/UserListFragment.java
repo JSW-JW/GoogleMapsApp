@@ -233,6 +233,7 @@ public class UserListFragment extends Fragment implements OnMapReadyCallback {
         mGoogleMap.moveCamera(CameraUpdateFactory.newLatLngBounds(mMapBoundary, 0));
     }
 
+    // save authenticated userloaction into mUserPosition variable
     private void setUserPosition() {
         for (UserLocation userLocation : mUserLocations) {
             if (userLocation.getUser().getUser_id().equals(FirebaseAuth.getInstance().getUid())) {
