@@ -69,7 +69,7 @@ public class MainActivity extends AppCompatActivity implements
         ChatroomRecyclerAdapter.ChatroomRecyclerClickListener
 {
     //tag
-    
+
     private static final String TAG = "MainActivity";
 
     //widgets
