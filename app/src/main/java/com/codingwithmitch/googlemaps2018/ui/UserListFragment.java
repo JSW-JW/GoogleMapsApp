@@ -323,6 +323,7 @@ public class UserListFragment extends Fragment implements
         map.setMyLocationEnabled(true);
         mGoogleMap = map;
         addMapMarkers();
+        mGoogleMap.setOnInfoWindowClickListener(this);
     }
 
     @Override
