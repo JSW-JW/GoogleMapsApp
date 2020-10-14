@@ -3,6 +3,7 @@ package com.codingwithmitch.googlemaps2018.ui;
 import android.Manifest;
 import android.animation.ObjectAnimator;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -67,13 +68,14 @@ public class UserListFragment extends Fragment implements
 
 
     //vars
+    private Context mContext;
     private ArrayList<User> mUserList = new ArrayList<>();
     private ArrayList<UserLocation> mUserLocations = new ArrayList<>();
     private UserRecyclerAdapter mUserRecyclerAdapter;
     private GoogleMap mGoogleMap;
     private UserLocation mUserPosition;
     private LatLngBounds mMapBoundary;
-    private ClusterManager mClusterManager;
+    private ClusterManager<ClusterMarker> mClusterManager;
     private MyClusterManagerRenderer mClusterManagerRenderer;
     private ArrayList<ClusterMarker> mClusterMarkers = new ArrayList<>();
     private Handler mHandler = new Handler();
@@ -81,7 +83,6 @@ public class UserListFragment extends Fragment implements
     private static final int LOCATION_UPDATE_INTERVAL = 3000;
     private int mMapLayoutState = 0;
     private GeoApiContext mGeoApiContext = null;
-
 
 
     public static UserListFragment newInstance() {
@@ -108,9 +109,9 @@ public class UserListFragment extends Fragment implements
         View view = inflater.inflate(R.layout.fragment_user_list, container, false);
         mUserListRecyclerView = view.findViewById(R.id.user_list_recycler_view);
         mMapView = view.findViewById(R.id.user_list_map);
+        view.findViewById(R.id.btn_full_screen_map).setOnClickListener(this);
         mMapContainer = view.findViewById(R.id.map_container);
 
-        view.findViewById(R.id.btn_full_screen_map).setOnClickListener(this);
 
         initUserListRecyclerView();
         initGoogleMap(savedInstanceState);
@@ -120,7 +121,13 @@ public class UserListFragment extends Fragment implements
         return view;
     }
 
-    private void calculateDirections(Marker marker){
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        mContext = context;
+    }
+
+    private void calculateDirections(Marker marker) {
         Log.d(TAG, "calculateDirections: calculating directions.");
 
         LatLng destination = new LatLng(
@@ -148,13 +155,13 @@ public class UserListFragment extends Fragment implements
 
             @Override
             public void onFailure(Throwable e) {
-                Log.e(TAG, "calculateDirections: Failed to get directions: " + e.getMessage() );
+                Log.e(TAG, "calculateDirections: Failed to get directions: " + e.getMessage());
 
             }
         });
     }
 
-    private void startUserLocationsRunnable(){
+    private void startUserLocationsRunnable() {
         Log.d(TAG, "startUserLocationsRunnable: starting runnable for retrieving updated locations.");
         mHandler.postDelayed(mRunnable = new Runnable() {
             @Override
@@ -165,15 +172,15 @@ public class UserListFragment extends Fragment implements
         }, LOCATION_UPDATE_INTERVAL);
     }
 
-    private void stopLocationUpdates(){
+    private void stopLocationUpdates() {
         mHandler.removeCallbacks(mRunnable);
     }
 
-    private void retrieveUserLocations(){
+    private void retrieveUserLocations() {
         Log.d(TAG, "retrieveUserLocations: retrieving location of all users in the chatroom.");
 
-        try{
-            for(final ClusterMarker clusterMarker: mClusterMarkers){
+        try {
+            for (final ClusterMarker clusterMarker : mClusterMarkers) {
 
                 DocumentReference userLocationRef = FirebaseFirestore.getInstance()
                         .collection(getString(R.string.collection_user_locations))
@@ -182,7 +189,7 @@ public class UserListFragment extends Fragment implements
                 userLocationRef.get().addOnCompleteListener(new OnCompleteListener<DocumentSnapshot>() {
                     @Override
                     public void onComplete(@NonNull Task<DocumentSnapshot> task) {
-                        if(task.isSuccessful()){
+                        if (task.isSuccessful()) {
 
                             final UserLocation updatedUserLocation = task.getResult().toObject(UserLocation.class);
 
@@ -210,20 +217,24 @@ public class UserListFragment extends Fragment implements
                     }
                 });
             }
-        }catch (IllegalStateException e){
-            Log.e(TAG, "retrieveUserLocations: Fragment was destroyed during Firestore query. Ending query." + e.getMessage() );
+        } catch (IllegalStateException e) {
+            Log.e(TAG, "retrieveUserLocations: Fragment was destroyed during Firestore query. Ending query." + e.getMessage());
         }
 
     }
 
-    private void addMapMarkers(){
+    private void addMapMarkers() {
 
-        if(mGoogleMap != null){
+        mGoogleMap.clear();
 
-            if(mClusterManager == null){
-                mClusterManager = new ClusterManager<ClusterMarker>(getContext(), mGoogleMap);
+        if (mGoogleMap != null) {
+
+            if (mClusterManager == null) {
+                mClusterManager = new ClusterManager<>(mContext, mGoogleMap);
             }
-            if(mClusterManagerRenderer == null){
+            /*MarkerManager.Collection markerCollection = mClusterManager.getMarkerCollection();
+            markerCollection.setOnInfoWindowClickListener(this);*/
+            if (mClusterManagerRenderer == null) {
                 mClusterManagerRenderer = new MyClusterManagerRenderer(
                         getActivity(),
                         mGoogleMap,
@@ -232,15 +243,14 @@ public class UserListFragment extends Fragment implements
                 mClusterManager.setRenderer(mClusterManagerRenderer);
             }
 
-            for(UserLocation userLocation: mUserLocations){
+            for (UserLocation userLocation : mUserLocations) {
 
                 Log.d(TAG, "addMapMarkers: location: " + userLocation.getGeo_point().toString());
-                try{
+                try {
                     String snippet = "";
-                    if(userLocation.getUser().getUser_id().equals(FirebaseAuth.getInstance().getUid())){
+                    if (userLocation.getUser().getUser_id().equals(FirebaseAuth.getInstance().getUid())) {
                         snippet = "This is you";
-                    }
-                    else{
+                    } else {
                         snippet = "Determine route to " + userLocation.getUser().getUsername() + "?";
                     }
 
@@ -250,7 +260,7 @@ public class UserListFragment extends Fragment implements
 //                    }catch (NumberFormatException e){
 //                        Log.d(TAG, "addMapMarkers: no avatar for " + userLocation.getUser().getUsername() + ", setting default.");
 //                    }
-                    if(userLocation.getUser().getAvatar() != null) {
+                    if (userLocation.getUser().getAvatar() != null) {
                         avatar = Integer.parseInt(userLocation.getUser().getAvatar());
                     }
                     ClusterMarker newClusterMarker = new ClusterMarker(
@@ -260,11 +270,12 @@ public class UserListFragment extends Fragment implements
                             avatar,
                             userLocation.getUser()
                     );
+
                     mClusterManager.addItem(newClusterMarker);
                     mClusterMarkers.add(newClusterMarker);
 
-                }catch (NullPointerException e){
-                    Log.e(TAG, "addMapMarkers: NullPointerException: " + e.getMessage() );
+                } catch (NullPointerException e) {
+                    Log.e(TAG, "addMapMarkers: NullPointerException: " + e.getMessage());
                 }
 
             }
@@ -313,7 +324,7 @@ public class UserListFragment extends Fragment implements
 
         mMapView.getMapAsync(this);
 
-        if(mGeoApiContext == null) {
+        if (mGeoApiContext == null) {
             mGeoApiContext = new GeoApiContext.Builder()
                     .apiKey(getString(R.string.google_maps_api_key))
                     .build();
@@ -373,6 +384,32 @@ public class UserListFragment extends Fragment implements
     }
 
     @Override
+    public void onInfoWindowClick(final Marker marker) {
+        Log.d(TAG, "Here!!");
+        if (marker.getSnippet().equals("This is you")) {
+            marker.hideInfoWindow();
+        } else {
+
+            final AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+            builder.setMessage(marker.getSnippet())
+                    .setCancelable(true)
+                    .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                        public void onClick(@SuppressWarnings("unused") final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+                            calculateDirections(marker);
+                            dialog.dismiss();
+                        }
+                    })
+                    .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                        public void onClick(final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
+                            dialog.cancel();
+                        }
+                    });
+            final AlertDialog alert = builder.create();
+            alert.show();
+        }
+    }
+
+    @Override
     public void onPause() {
         mMapView.onPause();
         super.onPause();
@@ -393,14 +430,13 @@ public class UserListFragment extends Fragment implements
 
     @Override
     public void onClick(View v) {
-        switch (v.getId()){
-            case R.id.btn_full_screen_map:{
+        switch (v.getId()) {
+            case R.id.btn_full_screen_map: {
 
-                if(mMapLayoutState == MAP_LAYOUT_STATE_CONTRACTED){
+                if (mMapLayoutState == MAP_LAYOUT_STATE_CONTRACTED) {
                     mMapLayoutState = MAP_LAYOUT_STATE_EXPANDED;
                     expandMapAnimation();
-                }
-                else if(mMapLayoutState == MAP_LAYOUT_STATE_EXPANDED){
+                } else if (mMapLayoutState == MAP_LAYOUT_STATE_EXPANDED) {
                     mMapLayoutState = MAP_LAYOUT_STATE_CONTRACTED;
                     contractMapAnimation();
                 }
@@ -410,7 +446,7 @@ public class UserListFragment extends Fragment implements
         }
     }
 
-    private void expandMapAnimation(){
+    private void expandMapAnimation() {
         ViewWeightAnimationWrapper mapAnimationWrapper = new ViewWeightAnimationWrapper(mMapContainer);
         ObjectAnimator mapAnimation = ObjectAnimator.ofFloat(mapAnimationWrapper,
                 "weight",
@@ -429,7 +465,7 @@ public class UserListFragment extends Fragment implements
         mapAnimation.start();
     }
 
-    private void contractMapAnimation(){
+    private void contractMapAnimation() {
         ViewWeightAnimationWrapper mapAnimationWrapper = new ViewWeightAnimationWrapper(mMapContainer);
         ObjectAnimator mapAnimation = ObjectAnimator.ofFloat(mapAnimationWrapper,
                 "weight",
@@ -448,31 +484,6 @@ public class UserListFragment extends Fragment implements
         mapAnimation.start();
     }
 
-    @Override
-    public void onInfoWindowClick(final Marker marker) {
-        if(marker.getSnippet().equals("This is you")){
-            marker.hideInfoWindow();
-        }
-        else{
-
-            final AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-            builder.setMessage(marker.getSnippet())
-                    .setCancelable(true)
-                    .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-                        public void onClick(@SuppressWarnings("unused") final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
-                            calculateDirections(marker);
-                            dialog.dismiss();
-                        }
-                    })
-                    .setNegativeButton("No", new DialogInterface.OnClickListener() {
-                        public void onClick(final DialogInterface dialog, @SuppressWarnings("unused") final int id) {
-                            dialog.cancel();
-                        }
-                    });
-            final AlertDialog alert = builder.create();
-            alert.show();
-        }
-    }
 }
 
 
